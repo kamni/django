@@ -1195,7 +1195,7 @@ class ModelAdmin(BaseModelAdmin):
             else:
                 form_validated = False
                 new_object = self.model()
-            formsets = self._create_formsets(request, new_object, inline_instances)
+            formsets = self._create_view_formsets(request, new_object, inline_instances)
             if all_valid(formsets) and form_validated:
                 self.save_model(request, new_object, form, False)
                 self.save_related(request, form, formsets, False)
@@ -1213,7 +1213,7 @@ class ModelAdmin(BaseModelAdmin):
                 if isinstance(f, models.ManyToManyField):
                     initial[k] = initial[k].split(",")
             form = ModelForm(initial=initial)
-            formsets = self._create_formsets(request, self.model(), inline_instances)
+            formsets = self._create_view_formsets(request, self.model(), inline_instances)
 
         adminForm = helpers.AdminForm(form, list(self.get_fieldsets(request)),
             self.get_prepopulated_fields(request),
@@ -1275,7 +1275,7 @@ class ModelAdmin(BaseModelAdmin):
             else:
                 form_validated = False
                 new_object = obj
-            formsets = self._create_formsets(request, new_object, inline_instances)
+            formsets = self._create_view_formsets(request, new_object, inline_instances)
             if all_valid(formsets) and form_validated:
                 self.save_model(request, new_object, form, True)
                 self.save_related(request, form, formsets, True)
@@ -1285,7 +1285,7 @@ class ModelAdmin(BaseModelAdmin):
 
         else:
             form = ModelForm(instance=obj)
-            formsets = self._create_formsets(request, obj, inline_instances)
+            formsets = self._create_view_formsets(request, obj, inline_instances)
 
         adminForm = helpers.AdminForm(form, self.get_fieldsets(request, obj),
             self.get_prepopulated_fields(request, obj),
@@ -1566,7 +1566,7 @@ class ModelAdmin(BaseModelAdmin):
             "admin/object_history.html"
         ], context, current_app=self.admin_site.name)
 
-    def _create_formsets(self, request, obj, inline_instances):
+    def _create_view_formsets(self, request, obj, inline_instances):
         "Helper function to generate formsets for add/change_view."
         formsets = []
         prefixes = {}
@@ -1591,6 +1591,55 @@ class ModelAdmin(BaseModelAdmin):
                 })
             formsets.append(FormSet(**formset_params))
         return formsets
+    
+    def _add_and_change_view_logic(self):
+        """Helper function for add/change_view for the shared logic in each view"""
+        pass
+    
+    def _create_view_formsets(self, request, obj, inline_instances):
+        """Helper function to generate formsets for add/change_view."""
+        formsets = []
+        prefixes = {}
+        get_formsets_args = [request]
+        if obj.pk:
+            get_formsets_args.append(obj)
+        for FormSet, inline in zip(self.get_formsets(*get_formsets_args), inline_instances):
+            prefix = FormSet.get_default_prefix()
+            prefixes[prefix] = prefixes.get(prefix, 0) + 1
+            if prefixes[prefix] != 1 or not prefix:
+                prefix = "%s-%s" % (prefix, prefixes[prefix])
+            formset_params = {
+                'instance': obj,
+                'prefix': prefix,
+                'queryset': inline.get_queryset(request),
+            }
+            if request.method == 'POST':
+                formset_params.update({
+                    'data': request.POST,
+                    'files': request.FILES,
+                    'save_as_new': '_saveasnew' in request.POST
+                })
+            formsets.append(FormSet(**formset_params))
+        return formsets
+    
+    def _create_formset(self):
+        """ 
+        Helper function for _create_view_formsets isolating the actual formset 
+        creation to make unit testing and bug fixing more accessible
+        """
+        pass
+    
+    def _generate_unique_formset_prefix(self):
+        """Helper function for _create_view_formsets"""
+        pass
+    
+    def _generate_view_context(self):
+        """Helper function for _add_and_change_view_logic"""
+        pass
+    
+    def _get_formset_object(self):
+        """Helper function for _add_and_change_view_logic"""
+        pass
 
 
 class InlineModelAdmin(BaseModelAdmin):
